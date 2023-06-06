@@ -7,7 +7,10 @@
 echo -e "AIRFLOW_UID=$(id -u)" > .env
 
 # On all operating systems, you need to run database migrations and create the first user account. To do this, run.
-docker compose up airflow-init  
+docker compose up airflow-init
+
+# build wine-recognition-airflow image
+./build.sh
 ```
 
 ## Running Airflow
