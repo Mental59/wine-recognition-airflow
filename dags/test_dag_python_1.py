@@ -3,6 +3,9 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
+from lib.data_master import test_numpy
+from lib.nn import test_torch
+
 default_args = {
     'owner': 'mental',
     'retries': 3,
@@ -37,9 +40,21 @@ with DAG(
     schedule_interval=None,
     catchup=False
 ) as dag:
-    test_imports_task = PythonOperator(
-        task_id='test_imports',
-        python_callable=test_imports,
+    # test_imports_task = PythonOperator(
+    #     task_id='test_imports',
+    #     python_callable=test_imports,
+    # )
+
+    # test_imports_task
+
+    test_numpy = PythonOperator(
+        task_id = 'test_numpy',
+        python_callable=test_numpy
     )
 
-    test_imports_task
+    test_torch = PythonOperator(
+        task_id = 'test_torch',
+        python_callable=test_torch
+    )
+
+    test_numpy >> test_torch
