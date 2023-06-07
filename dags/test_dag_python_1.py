@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-from lib.data_master import test_numpy
+from lib.data_master import test_numpy, test_loading_numpy_array, test_saving_numpy_array
 from lib.nn import test_torch
 
 default_args = {
     'owner': 'mental',
-    'retries': 3,
+    'retries': 0,
     'retry_delay': timedelta(seconds=10)
 }
 
@@ -36,25 +36,15 @@ with DAG(
     dag_id='test_dag_python_1',
     default_args=default_args,
     description='DAG for testing lib imports',
-    start_date=datetime(1, 1, 1),
+    start_date=datetime.now(),
     schedule_interval=None,
     catchup=False
 ) as dag:
-    # test_imports_task = PythonOperator(
-    #     task_id='test_imports',
-    #     python_callable=test_imports,
-    # )
+    test_numpy_task = PythonOperator(task_id='test_numpy', python_callable=test_numpy)
 
-    # test_imports_task
+    test_torch_task = PythonOperator(task_id='test_torch', python_callable=test_torch)
+    test_saving_numpy_array_task = PythonOperator(task_id='test_saving_numpy_array', python_callable=test_saving_numpy_array)
+    test_loading_numpy_array_task = PythonOperator(task_id='test_loading_numpy_array', python_callable=test_loading_numpy_array)
 
-    test_numpy = PythonOperator(
-        task_id = 'test_numpy',
-        python_callable=test_numpy
-    )
-
-    test_torch = PythonOperator(
-        task_id = 'test_torch',
-        python_callable=test_torch
-    )
-
-    test_numpy >> test_torch
+    
+    test_saving_numpy_array_task >> test_loading_numpy_array_task
