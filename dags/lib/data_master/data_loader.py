@@ -1,31 +1,72 @@
-from ..utils import get_data_dir
-
-__all__ = [
-    'test_numpy',
-    'test_saving_numpy_array',
-    'test_loading_numpy_array'
-]
+import os
+from typing import Dict
+import pandas as pd
 
 
-def test_numpy():
-    import numpy as np
+class DataLoader:
+    """class for loading data with needed format"""
 
-    arr = np.random.randn(4, 4)
-    print('numpy array:', arr)
+    @staticmethod
+    def load_frequency_dictionary(path: str, to_lowercase=False) -> Dict:
+        freq_dict = {}
 
+        for filename in os.listdir(path):
+            key = os.path.splitext(filename)[0]
+            freq_dict[key] = pd.read_csv(f'{os.path.join(path, filename)}', dtype=object)
+            freq_dict[key].fillna('', inplace=True)
+            if to_lowercase:
+                freq_dict[key]['value'] = freq_dict[key]['value'].str.lower()
 
-def test_saving_numpy_array():
-    import os
-    import numpy as np
+        return freq_dict
 
-    x = np.arange(10)
-    np.save(os.path.join(get_data_dir(), 'arr'), x)
-    print('Numpy array has been saved:', x)
+    @staticmethod
+    def load_csv_data(path: str, fillna=True) -> pd.DataFrame:
+        data = pd.read_csv(path, dtype=object)
 
+        if fillna:
+            data.fillna('', inplace=True)
 
-def test_loading_numpy_array():
-    import os
-    import numpy as np
+        return data
 
-    x = np.load(os.path.join(get_data_dir(), 'arr.npy'))
-    print('Loaded numpy array:', x)
+    @staticmethod
+    def load_excel_data(path: str, fillna=True) -> pd.DataFrame:
+        data = pd.read_excel(path)
+
+        if fillna:
+            data.fillna('', inplace=True)
+
+        return data
+
+    @staticmethod
+    def preprocess(
+            data: pd.DataFrame,
+            fill_bottle_size: float = None,
+            only_completed_rows=False,
+            drop_not_add_columns=False
+    ) -> pd.DataFrame:
+
+        new_data = data.copy()
+
+        if fill_bottle_size:
+            new_data.loc[new_data['Add_BottleSize'] == '', 'Add_BottleSize'] = fill_bottle_size
+
+        if only_completed_rows:
+            new_data = new_data.loc[new_data['IsCompleted'] == True]
+
+        if drop_not_add_columns:
+            new_data.drop(
+                columns=[col for col in new_data.columns if not col.startswith('Add')],
+                inplace=True
+            )
+
+        new_data = new_data.applymap(
+            lambda x: ''.join(
+                char for char in str(x).replace('} {', '; ') if char not in '{}[]'
+            )
+        )
+
+        vintage = 'Add_Vintage'
+        if vintage in new_data.columns:
+            new_data.loc[(new_data[vintage] == 'Non Vintage') | (new_data[vintage] == 'Nv'), vintage] = 'nv'
+
+        return new_data

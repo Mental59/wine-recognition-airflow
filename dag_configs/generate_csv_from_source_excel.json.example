@@ -1,0 +1,5 @@
+{
+  "source_data_path": "source_data/Halliday_Wine_AU.xlsx",
+  "fill_bottle_size": 750.0,
+  "output_data_path": "transformed_source_data/Halliday_Wine_AU.csv"
+}

@@ -10,7 +10,7 @@ echo -e "AIRFLOW_UID=$(id -u)" > .env
 docker compose up airflow-init
 
 # build wine-recognition-airflow image
-./build.sh
+docker compose build
 ```
 
 ## Running Airflow
