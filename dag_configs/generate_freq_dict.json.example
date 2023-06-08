@@ -1,0 +1,8 @@
+{
+  "data_paths": [
+    "transformed_source_data/Halliday_Wine_AU_only_completed_rows_drop_not_add.csv",
+    "transformed_source_data/WineSearcher_Wine_AU_only_completed_rows_drop_not_add.csv",
+    "transformed_source_data/Bruxelles_Wine_ES.csv"
+  ],
+  "output": "dicts/Halliday_Winesearcher_Bruxelles_dict"
+}
