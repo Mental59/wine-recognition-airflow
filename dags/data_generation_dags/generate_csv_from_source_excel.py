@@ -1,13 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-default_args = {
-    'owner': 'mental',
-    'retries': 0,
-    'retry_delay': timedelta(seconds=10)
-}
+from lib.defaults import DEFAULT_ARGS
 
 def generate_csv(params, **kwargs):
     import os
@@ -36,7 +32,7 @@ def generate_csv(params, **kwargs):
     
 with DAG(
     dag_id='generate_csv_from_source_excel',
-    default_args=default_args,
+    default_args=DEFAULT_ARGS,
     description='DAG for generating transformed csv file from source excel file',
     start_date=datetime.now(),
     schedule_interval=None,

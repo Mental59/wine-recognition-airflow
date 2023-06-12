@@ -1,0 +1,11 @@
+{
+  "dictionary_paths_vocab_names": [
+    {
+      "freq_dict_path": "dicts/Halliday_Winesearcher_Bruxelles_dict_byword",
+      "output": "vocabs/Halliday_Winesearcher_Bruxelles_vocab_byword.json"
+    }
+  ],
+  "additional_words": [
+    "PAD", "UNK"
+  ]
+}
