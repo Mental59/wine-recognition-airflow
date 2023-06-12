@@ -27,6 +27,10 @@ class DataLoader:
             data.fillna('', inplace=True)
 
         return data
+    
+    @staticmethod
+    def load_csv_and_concat(paths: list[str]):
+        return pd.concat([DataLoader.load_csv_data(data_path) for data_path in paths])
 
     @staticmethod
     def load_excel_data(path: str, fillna=True) -> pd.DataFrame:

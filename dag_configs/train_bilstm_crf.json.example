@@ -1,0 +1,13 @@
+{
+  "run_name": "train_bilstm_crf",
+  "dataset": {
+    "dataset_paths": [
+      "transformed_source_data/Halliday_Wine_AU_only_completed_rows_drop_not_add.csv",
+      "transformed_source_data/WineSearcher_Wine_AU_only_completed_rows_drop_not_add.csv",
+      "transformed_source_data/Bruxelles_Wine_ES.csv"
+    ],
+    "pattern_percent": 0.1,
+    "pattern_samples": "pattern_samples.json",
+    "pattern_main": "pattern_main.json"
+  }
+}
