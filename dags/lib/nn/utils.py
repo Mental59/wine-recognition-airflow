@@ -1,17 +1,75 @@
 import os
+import re
 from typing import List
 import torch
 from torch import nn
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+from num2words import num2words
 from .custom_dataset import CustomDataset
 
 __all__ = [
     'train',
     'plot_losses',
     'generate_tag_to_ix',
-    'get_model_confidence'
+    'get_model_confidence',
+    'preprocess_raw_data',
+    'compute_max_sentence_len',
+    'number2words'
 ]
+
+
+def preprocess_raw_data(data, case_sensitive, use_num2words):
+    num_regex = re.compile(r"^\d+(\.\d+)?$")
+    fractional_number_regex = re.compile(r"^\d+/\d+$")
+
+    for sentence, tags in data:
+        if not case_sensitive:
+            sentence = [word.lower() for word in sentence]
+
+        if use_num2words:
+            new_sentence = []
+            new_tags = []
+
+            for word, tag in zip(sentence, tags):
+                if num_regex.match(word):
+                    words = number2words(word)
+                    new_sentence.extend(words)
+                    new_tags.extend([tag] * len(words))
+                elif fractional_number_regex.match(word):
+                    first_price, second_price = word.split('/')
+                    first_price_words = number2words(first_price)
+                    second_price_words = number2words(second_price)
+
+                    new_sentence.extend(first_price_words)
+                    new_tags.extend([tag] * len(first_price_words))
+
+                    new_sentence.append('/')
+                    new_tags.append('Other')
+
+                    new_sentence.extend(second_price_words)
+                    new_tags.extend([tag] * len(second_price_words))
+                else:
+                    new_sentence.append(word)
+                    new_tags.append(tag)
+
+            sentence = new_sentence
+            tags = new_tags
+
+        yield sentence, tags
+
+
+def compute_max_sentence_len(data):
+    return len(max(data, key=lambda x: len(x[0]))[0])
+
+
+def number2words(number) -> List[str]:
+    return (
+        num2words(number)
+        .replace('-', ' ')
+        .replace(',', '')
+        .split()
+    )
 
 
 def train(model, optimizer, dataloaders, device, num_epochs, output_dir, scheduler=None, verbose=True):

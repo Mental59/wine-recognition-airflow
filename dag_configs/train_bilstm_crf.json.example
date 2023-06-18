@@ -8,6 +8,21 @@
     ],
     "pattern_percent": 0.1,
     "pattern_samples": "pattern_samples.json",
-    "pattern_main": "pattern_main.json"
+    "pattern_main": "pattern_main.json",
+    "test_size": 0.2,
+    "vocab_path": "vocabs/Halliday_Winesearcher_Bruxelles_vocab_byword.json",
+    "case_sensitive_vocab": false,
+    "num2words": true
+  },
+  "model": {
+    "device": "cpu",
+    "batch_size": 2048,
+    "embedding_dim": 64,
+    "hidden_dim": 64,
+    "num_epochs": 100,
+    "learning_rate": 0.01,
+    "scheduler_factor": 0.1,
+    "scheduler_patience": 10,
+    "weight_decay": 0.0001
   }
 }
