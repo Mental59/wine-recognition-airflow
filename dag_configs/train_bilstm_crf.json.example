@@ -19,7 +19,7 @@
     "batch_size": 2048,
     "embedding_dim": 64,
     "hidden_dim": 64,
-    "num_epochs": 100,
+    "num_epochs": 3,
     "learning_rate": 0.01,
     "scheduler_factor": 0.1,
     "scheduler_patience": 10,

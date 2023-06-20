@@ -46,17 +46,19 @@ def generate_dataset(ti, **kwargs):
   df = DataLoader.load_csv_and_concat(dataset_paths)
 
   main_generator = ComplexGeneratorMain(conf['dataset']['pattern_main'])
-  menu_generators = ComplexGeneratorMenu.load_patterns(conf['dataset']['pattern_samples'])
+  # menu_generators = ComplexGeneratorMenu.load_patterns(conf['dataset']['pattern_samples'])
 
-  n_rows = int(len(df) * conf['dataset']['pattern_percent'])
   final_dataset = [
     DataGenerator.generate_data_text_complex(df, main_generator)
   ]
-  for menu_generator in menu_generators:
-    column_names = [value.column for value in menu_generator.cfg if value.values is None]
-    samples = df[column_names].dropna().sample(n_rows)
-    final_dataset.append(DataGenerator.generate_data_text_menu(samples, menu_generator))
+
+  # n_rows = int(len(df) * conf['dataset']['pattern_percent'])
+  # for menu_generator in menu_generators:
+  #   column_names = [value.column for value in menu_generator.cfg if value.values is None]
+  #   samples = df[column_names].dropna().sample(n_rows)
+  #   final_dataset.append(DataGenerator.generate_data_text_menu(samples, menu_generator))
   final_dataset = ''.join(final_dataset)
+
   with open(os.path.join('dataset', 'final_dataset.txt'), 'w', encoding='utf-8') as file:
     file.write(final_dataset)
   
@@ -111,23 +113,39 @@ def generate_dataset(ti, **kwargs):
 def train(ti, **kwargs):
   import os
   import json
+  import numpy as np
+  import torch
+  from torch.utils.data import DataLoader
+  from torch.optim import Adam
+  from torch.optim.lr_scheduler import ReduceLROnPlateau
+  import sklearn.metrics as metrics
   from lib.utils import chdir_run_id_folder, get_data_dir
-  from lib.nn import CustomDataset
+  from lib.nn import CustomDataset, BiLSTM_CRF, train, get_model_confidence, plot_losses
+  from lib.data_master import count_unk_foreach_tag, DataAnalyzer
 
   conf: dict = kwargs['dag_run'].conf
+  case_sensitive_vocab = conf['dataset']['case_sensitive_vocab']
+  vocab_path = conf['dataset']['vocab_path']
+  device = conf['model']['device']
+  batch_size = conf['model']['batch_size']
+  embedding_dim = conf['model']['embedding_dim']
+  hidden_dim = conf['model']['hidden_dim']
+  num_epochs = conf['model']['num_epochs']
+  learning_rate = conf['model']['learning_rate']
+  scheduler_factor = conf['model']['scheduler_factor']
+  scheduler_patience = conf['model']['scheduler_patience']
+  weight_decay = conf['model']['weight_decay']
+
   run_id = ti.xcom_pull(task_ids='preparation', key='run_id')
   chdir_run_id_folder(run_id)
 
   with open(os.path.join('dataset', 'tag_to_ix.json'), 'r', encoding='utf-8') as file:
     tag_to_ix = json.load(file)
-  with open(os.path.join(get_data_dir(), conf['dataset']['vocab_path']), 'r', encoding='utf-8') as file:
+  with open(os.path.join(get_data_dir(), vocab_path), 'r', encoding='utf-8') as file:
     word_to_ix = json.load(file)
   with open(os.path.join('dataset', 'metadata.json'), 'r', encoding='utf-8') as file:
     metadata = json.load(file)
   
-  case_sensitive_vocab = conf['dataset']['case_sensitive_vocab']
-  model_conf = conf['model']
-
   train_data_path = os.path.join('dataset', 'sents', 'train')
   val_data_path = os.path.join('dataset', 'sents', 'val')
 
@@ -149,8 +167,95 @@ def train(ti, **kwargs):
     case_sensitive=case_sensitive_vocab
   )
 
-  print(train_dataset[0])
-  print(val_dataset[0])
+  dataloaders = {
+    'train': DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True),
+    'val': DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=False)
+  }
+
+  model_conf = dict(
+    vocab_size=len(word_to_ix),
+    num_tags=len(tag_to_ix),
+    embedding_dim=embedding_dim,
+    hidden_dim=hidden_dim,
+    padding_idx=word_to_ix['PAD']
+  )
+
+  model = BiLSTM_CRF(**model_conf).to(device)
+  optimizer = Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+  scheduler = ReduceLROnPlateau(optimizer, factor=scheduler_factor, patience=scheduler_patience)
+
+  model, losses = train(
+    model=model,
+    optimizer=optimizer,
+    dataloaders=dataloaders,
+    device=device,
+    num_epochs=num_epochs,
+    output_dir='models',
+    scheduler=scheduler,
+    verbose=True
+  )
+
+  with open(os.path.join('models', 'tag_to_ix.json'), 'w', encoding='utf-8') as file:
+    json.dump(tag_to_ix, file)
+  with open(os.path.join('models', 'word_to_ix.json'), 'w', encoding='utf-8') as file:
+    json.dump(word_to_ix, file)
+  with open(os.path.join('models', 'model_conf.json'), 'w', encoding='utf-8') as file:
+    json.dump(model_conf, file)
+
+  val_dataset_raw_data = list(val_dataset.raw_data())
+  y_val_true = [tags for _, tags in val_dataset_raw_data]
+
+  y_val_pred = []
+  tags = list(tag_to_ix.keys())
+  model.eval()
+  with torch.no_grad():
+    for x_batch, y_batch, mask_batch, _ in dataloaders['val']:
+        x_batch, mask_batch = x_batch.to(device), mask_batch.to(device)
+        y_batch_pred = model(x_batch, mask_batch)
+        y_val_pred.extend(y_batch_pred)
+  y_val_pred = [[tags[tag] for tag in sentence] for sentence in y_val_pred]
+
+  X_test = [
+    torch.tensor(val_dataset.sentence_to_indices(sentence), dtype=torch.int64) for sentence, _ in val_dataset_raw_data
+  ]
+
+  unk_foreach_tag = count_unk_foreach_tag(X_test, y_val_true, list(tag_to_ix), val_dataset.word_to_ix[val_dataset.unk])
+  model_confidence = np.mean(get_model_confidence(model, X_test, device))
+
+  test_eval = [list(zip(sentence, tags, y_val_pred[index])) for index, (sentence, tags) in enumerate(val_dataset_raw_data)]
+
+  y_val_true_flat = [item for sublist in y_val_true for item in sublist]
+  y_val_pred_flat = [item for sublist in y_val_pred for item in sublist]
+  results = dict(
+    conf=conf,
+    model_confidence=model_confidence,
+    unk_foreach_tag=unk_foreach_tag,
+    metrics={
+      'f1-score': metrics.f1_score(y_val_true_flat, y_val_pred_flat, average='weighted', labels=tags),
+      'precision': metrics.precision_score(y_val_true_flat, y_val_pred_flat, average='weighted', labels=tags),
+      'recall': metrics.recall_score(y_val_true_flat, y_val_pred_flat, average='weighted', labels=tags),
+      'accuracy': metrics.accuracy_score(y_val_true_flat, y_val_pred_flat)
+    },
+  )
+  with open(os.path.join('artifacts', 'results.json'), 'w', encoding='utf-8') as file:
+    json.dump(results, file)
+
+  with open(os.path.join('artifacts', 'classification_report.txt'), 'w', encoding='utf-8') as file:
+    file.write(metrics.classification_report(y_val_true_flat, y_val_pred_flat, labels=tags, digits=3))
+  
+  DataAnalyzer.analyze(
+    test_eval=test_eval,
+    keys=list(tag_to_ix),
+    table_save_path=os.path.join('artifacts', 'colored-table.xlsx'),
+    diagram_save_path=os.path.join('artifacts', 'diagram.png')
+  )
+
+  plot_losses(
+    losses=losses,
+    figsize=(12, 8),
+    show=False,
+    savepath=os.path.join('artifacts', 'losses.png')
+  )
 
 
 with DAG(

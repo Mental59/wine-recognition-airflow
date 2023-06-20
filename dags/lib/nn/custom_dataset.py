@@ -42,7 +42,8 @@ class CustomDataset(Dataset):
         sentence, tags = self.load_data(index)
         sentence, tags = self.prepare_data(sentence, tags)
         mask = tags >= 0
-        return sentence, tags, mask
+        f = torch.empty(0)
+        return sentence, tags, mask, f
     
     def __len__(self):
         return self.data_length

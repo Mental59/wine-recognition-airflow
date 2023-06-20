@@ -2,7 +2,7 @@ from typing import Optional, List
 
 import torch
 from torch import nn
-from TorchCRF import CRF
+from torchcrf import CRF
 
 __all__ = [
     'BiLSTM_CRF'
